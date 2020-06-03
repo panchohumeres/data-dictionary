@@ -1,6 +1,7 @@
 import jinja2
 from modules.unwind import *
 import pandas as pd
+from modules.Elastic_Module import *
 
 class rst:
     
@@ -16,6 +17,14 @@ class rst:
         if not self.has_attribute('section_template'):
             self.section_template='templates/sections.rst'
             
+        if not self.has_attribute('data_dict_index'):
+            self.data_dict_index=[
+    ('data_dict','data'),
+        ]
+            
+        if not self.has_attribute('elastic_args'):
+            self.elastic_args={'n':1500,'id_field':'id'}
+            
         if not self.has_attribute('sep'):
             self.sep='---'
             
@@ -24,6 +33,7 @@ class rst:
         self.create_tables()
         self.render_patterns()
         self.save_rendered_templates()
+        self.save_to_elastic(**self.elastic_args)
    
     def paths_pattern(self):
         self.create_index_paths()
@@ -183,3 +193,23 @@ class rst:
 
     def has_attribute(self,attribute):
         return (hasattr(self, attribute))
+    
+    
+    def save_to_elastic(self,id_field='',n=''):
+        data=self.master_df
+        data[id_field]=data.index
+        es=self.elastic_connection
+        es.add_docs(data)
+        print('N°Documents before indexing :'+str(data.shape[0]))
+        es.elastic_prepare_pattern()
+        indexes=self.data_dict_index
+        #generate bulk data
+        print('generating bulk data for indexing data dict into Elasticsearch')      
+        i=indexes[0]
+        es.bulk_data(INDEX_NAME=i[0],_type=i[1],n=n,id_field=id_field)
+        print('clearing index')
+        es.clear_index(i[0])
+        print('executing bulk index')
+        es.bulk_index()
+        print('safety check: counting indexed documents')
+        es.count_documents(i[0])
