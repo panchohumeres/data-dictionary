@@ -25,16 +25,31 @@ class rst:
         if not self.has_attribute('elastic_args'):
             self.elastic_args={'n':1500,'id_field':'id'}
             
+        if not self.has_attribute('mode'):
+            self.mode='update'
+            
         if not self.has_attribute('sep'):
             self.sep='---'
             
+        if self.mode=='create':
+            self.create_pattern()
+        else:
+            self.update_pattern()
+         
+    def create_pattern(self):
         self.paths_pattern()
         self.unwind_docs(sep=self.sep)
         self.create_tables()
         self.render_patterns()
         self.save_rendered_templates()
         self.save_to_elastic(**self.elastic_args)
-   
+        
+    def update_pattern(self):
+        self.paths_pattern()
+        self.from_elastic(**self.elastic_args)
+        self.render_patterns()
+        self.save_rendered_templates()
+        
     def paths_pattern(self):
         self.create_index_paths()
         self.create_sections_refs()
@@ -63,7 +78,7 @@ class rst:
             indexes=[i for i in es.list_indices() if i not in blacklist]
             idxs={}
             for INDEX in indexes:
-                self.DBases[DB]['indexes'][INDEX]={}           
+                self.DBases[DB]['indexes'][INDEX]={'INDEXlinks':[],'INDEXdescription':''}           
 
         
     def create_table_paths(self):
@@ -79,6 +94,7 @@ class rst:
                 self.DBases[DB]['indexes'][INDEX]['rst_section_path']=self.INDEXpaths.replace('{}',str(DBname)+'-'+str(INDEX)).replace(' ','_')
                 rst_path=self.DBases[DB]['indexes'][INDEX]['rst_section_path']
                 self.DBases[DB]['indexes'][INDEX]['section_entry']=str(idx)+'. '+INDEX+' '+rst_path
+                    
                 
    
     def load_templates(self):
@@ -92,9 +108,17 @@ class rst:
         keys=list(self.DBases.keys())
         keys.sort()
         databases=[]
+        links=[]
+        for link in self.links:
+            l=link['name']+' : '+link['url']
+            links.append(l)
+        
         for DB in keys:
             databases.append(self.DBases[DB]['section_entry'])
-        self.rendered_index=self.index_template.render(title=self.data_dict_title,databases=databases)
+            
+        
+        self.rendered_index=self.index_template.render(title=self.data_dict_title,databases=databases,
+                                                       description=self.description,links=links)
         
         
     def render_sections(self):
@@ -102,16 +126,31 @@ class rst:
         for DB in DBases.keys():
             DBname=self.DBases[DB]['DBname']
             DBdescription=self.DBases[DB]['DBdescription']
+            DBlinks=[]
+            for link in self.DBases[DB]['DBlinks']:
+                l=link['name']+' : '+link['url']
+                DBlinks.append(l)
             
             indexes=[]
             for INDEX in self.DBases[DB]['indexes'].keys():
                 entry=DBases[DB]['indexes'][INDEX]['section_entry']
                 indexes.append(entry)
                 path=DBases[DB]['indexes'][INDEX]['rst_table_path']
-                self.DBases[DB]['indexes'][INDEX]['rendered']=self.section_template.render(INDEX=INDEX,DBname=DBname,path=path)
-                
+                INDEXlinks=[]
+                for link in self.DBases[DB]['indexes'][INDEX]['IDXlinks']:
+                    l=link['name']+' : '+link['url']
+                    INDEXlinks.append(l)
                     
-            self.DBases[DB]['rendered']=self.sections_template.render(indexes=indexes,DBname=DBname,DBdescription=DBdescription)
+                INDEXdescription=DBases[DB]['indexes'][INDEX]['IDXdescription']
+                    
+                self.DBases[DB]['indexes'][INDEX]['rendered']=self.section_template.render(INDEX=INDEX,DBname=DBname,
+                                                                                           INDEXlinks=INDEXlinks,
+                                                                                           INDEXdescription=INDEXdescription,
+                                                                                           path=path)
+                    
+            self.DBases[DB]['rendered']=self.sections_template.render(indexes=indexes,
+                                                                      DBlinks=DBlinks,
+                                                                      DBname=DBname,DBdescription=DBdescription)
             
             
     def save_rendered_templates(self):
@@ -139,8 +178,13 @@ class rst:
                 docs=es.test_index(INDEX,n=1,as_df=False)
                 unwinded=unwind(docs=[docs['hits']['hits'][0]['_source']],sep=sep)
                 df=unwinded.docs
+                df['links']=[self.links for x in range(df.shape[0])]
+                df['DBlinks']=[self.DBases[DB]['DBlinks'] for x in range(df.shape[0])]
                 df['index-collection']=INDEX
                 df['DB']=self.DBases[DB]['DBname']
+                df['DBdescription']=self.DBases[DB]['DBdescription']
+                df['IDXdescription']=''
+                df['IDXlinks']=[[] for x in range(df.shape[0])]
                 df.index=df['DB']+self.sep+df['index-collection']+self.sep+df['key']
                 df=df.fillna('')
                 dfs.append(df)
@@ -194,6 +238,76 @@ class rst:
     def has_attribute(self,attribute):
         return (hasattr(self, attribute))
     
+    def from_elastic(self,id_field='',n=''):
+        es=self.elastic_connection
+        indexes=self.data_dict_index
+        print('Reading data dictionary from elasticsearch')
+        i=indexes[0]
+        df=es.read_all_index(INDEX_NAME=i[0],n=n,to_df=True,rw=False)
+        
+        links=df['links'].unique()
+        descriptions=df['description'].unique()
+        
+        self.links=self.eval_string(links)
+        self.description=self.keep_first(descriptions)
+        
+        DBases_names=df.DB.unique()
+        DBases_index=list(range(1,len(DBases_names)+1))
+        DBases={}
+        
+        for idx,DBname in zip(DBases_index,DBases_names):
+            DBases[idx]={'DBname':DBname,
+            'path':self.sections_path.replace('{}',DBname).replace(' ','_'),
+            'rst_path':self.dbpaths.replace('{}',DBname).replace(' ','_')}
+            
+            descriptions=df.loc[df['DB']==DBname,'DBdescription'].unique()
+            links=df.loc[df['DB']==DBname,'DBlinks'].unique()
+            
+            DBases[idx]['DBdescription']=self.keep_first(descriptions)
+            DBases[idx]['DBlinks']=self.eval_string(links)
+            
+            rst_path=DBases[idx]['rst_path']
+            DBases[idx]['section_entry']=str(idx)+'. '+DBname+' '+rst_path 
+                        
+            DBases[idx]['indexes']={}
+            indexes_names=df.loc[df['DB']==DBname,'index-collection'].unique()
+            indexes_names=[x for x in indexes_names if x!='data_dict']
+            indexes_index=list(range(1,len(indexes_names)+1))
+            for Idx,INDEX in zip(indexes_index,indexes_names):
+                DBases[idx]['indexes'][INDEX]={
+                 'rst_table_path':self.tables_rst_path.replace('{}',str(DBname)+'-'+str(INDEX)).replace(' ','_'),
+                'actual_table_path':self.actual_tables_path.replace('{}',str(DBname)+'-'+str(INDEX)).replace(' ','_'),
+                'section_path':self.sections_path.replace('{}',str(DBname)+'-'+str(INDEX)).replace(' ','_'),
+                'rst_section_path':self.INDEXpaths.replace('{}',str(DBname)+'-'+str(INDEX)).replace(' ','_')
+                }
+                
+                rst_path=DBases[idx]['indexes'][INDEX]['rst_section_path']
+                #print(rst_path)
+                DBases[idx]['indexes'][INDEX]['section_entry']=str(Idx)+'. '+INDEX+' '+rst_path
+                
+                links=df.loc[df['DB']==DBname,'DBlinks'].unique()
+                descriptions=df.loc[df['DB']==DBname,'IDXdescription'].unique()
+                
+                DBases[idx]['indexes'][INDEX]['IDXdescription']=self.keep_first(descriptions)
+                DBases[idx]['indexes'][INDEX]['IDXlinks']=self.eval_string(links)
+        
+        self.DBases=DBases        
+        self.master_df=df
+                                               
+    def eval_string(self,string_list):
+        l=[eval(x) if x!="" else [] for x in string_list  ]
+        if [] in l: l.remove([])
+        if len(l)<1:
+            l=[[]]
+        return l[0]
+                                               
+    def keep_first(self,string_list):
+        l=[x if x!="" else "" for x in string_list  ]
+        if "" in l: l.remove("")
+        if len(l)<1:
+            l=[[]]
+        return l[0]                                       
+                                          
     
     def save_to_elastic(self,id_field='',n=''):
         data=self.master_df
