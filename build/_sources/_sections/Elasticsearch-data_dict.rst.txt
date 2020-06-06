@@ -1,11 +1,11 @@
 ========================================
-Elasticsearch 2
+Elasticsearch
 ========================================
 
-cha_sucursales
+data_dict
 =============================
 
-[]
+
 
 External links 
 -----------------------------
@@ -16,5 +16,5 @@ Fields Dictionary
 -----------------------------
     .. raw:: html
  
-        <iframe src="../_static/tables/Elasticsearch_2-cha_sucursales.html" height="1000px" width="100%"></iframe>
+        <iframe src="../_static/tables/Elasticsearch-data_dict.html" height="1000px" width="100%"></iframe>
  

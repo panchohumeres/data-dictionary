@@ -5,6 +5,14 @@ Elasticsearch 2
 Second DB Example
 
 
+External links 
+-----------------------------
+
+
+
+Index-Collections list
+-----------------------------
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
