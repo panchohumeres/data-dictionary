@@ -18,8 +18,8 @@ Index-Collections list
    :caption: Contents:
 
 
-      1. cha_sucursales <../_sections/Elasticsearch-cha_sucursales>
+      1. ckan_bare <../_sections/Elasticsearch-ckan_bare>
        
 
-      2. ckan_bare <../_sections/Elasticsearch-ckan_bare>
+      2. cha_sucursales <../_sections/Elasticsearch-cha_sucursales>
        
