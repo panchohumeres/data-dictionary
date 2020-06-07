@@ -5,7 +5,7 @@ Elasticsearch 2
 cha_sucursales
 =============================
 
-[]
+
 
 External links 
 -----------------------------

@@ -9,12 +9,6 @@ External links
 -----------------------------
 
 
-* ETL_1 : https//:dummy.com
- 
-
-* ETL2 : https://dummy2.com
- 
-
 
 Index-Collections list
 -----------------------------

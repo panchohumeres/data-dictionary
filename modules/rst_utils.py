@@ -78,7 +78,7 @@ class rst:
             indexes=[i for i in es.list_indices() if i not in blacklist]
             idxs={}
             for INDEX in indexes:
-                self.DBases[DB]['indexes'][INDEX]={'INDEXlinks':[],'INDEXdescription':''}           
+                self.DBases[DB]['indexes'][INDEX]={'IDXlinks':[],'IDXdescription':''}           
 
         
     def create_table_paths(self):
