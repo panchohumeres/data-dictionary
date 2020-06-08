@@ -1,4 +1,6 @@
 #!/bin/bash
+eval "$(conda shell.bash hook)"
+conda activate conda-3-forge #example environment, can be other
 
 while getopts m: option
 do 
@@ -18,3 +20,5 @@ new_fileName="${current_time}${file_name}"
 papermill Data_dictionary.ipynb outputs/${new_fileName} -p mode "${mode_param}"
 
 sphinx-build -b html source build
+
+conda deactivate
